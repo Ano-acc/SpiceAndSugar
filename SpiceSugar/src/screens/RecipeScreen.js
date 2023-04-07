@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { FontAwesome } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 
 const RecipeScreen = ({ route }) => {
     const { cocktailId } = route.params;
     const [cocktail, setCocktail] = useState(null);
+    const [isLiked, setIsLiked] = useState(false);
+    const isFocused = useIsFocused();
 
     useEffect(() => {
         fetchCocktailDetails();
-    }, []);
+        checkIsLiked();
+    }, [isFocused]);
 
     const fetchCocktailDetails = async () => {
         try {
@@ -16,6 +22,40 @@ const RecipeScreen = ({ route }) => {
             );
             const data = await response.json();
             setCocktail(data.drinks[0]);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const checkIsLiked = async () => {
+        try {
+            const likedCocktails = await AsyncStorage.getItem('likedCocktails');
+            if (likedCocktails) {
+                const parsedCocktails = JSON.parse(likedCocktails);
+                setIsLiked(parsedCocktails.includes(cocktailId));
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const toggleLike = async () => {
+        try {
+            let likedCocktails = await AsyncStorage.getItem('likedCocktails');
+            let parsedCocktails = [];
+
+            if (likedCocktails) {
+                parsedCocktails = JSON.parse(likedCocktails);
+            }
+
+            if (isLiked) {
+                parsedCocktails = parsedCocktails.filter((id) => id !== cocktailId);
+            } else {
+                parsedCocktails.push(cocktailId);
+            }
+
+            await AsyncStorage.setItem('likedCocktails', JSON.stringify(parsedCocktails));
+            setIsLiked(!isLiked);
         } catch (error) {
             console.error(error);
         }
@@ -30,7 +70,7 @@ const RecipeScreen = ({ route }) => {
 
             if (ingredient) {
                 ingredients.push(
-                    <Text key={i}>
+                    <Text key={i} style={styles.ingredient}>
                         {ingredient} {measure}
                     </Text>,
                 );
@@ -44,7 +84,17 @@ const RecipeScreen = ({ route }) => {
         <ScrollView style={styles.container}>
             {cocktail ? (
                 <>
-                    <Text style={styles.title}>{cocktail.strDrink}</Text>
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.title}>{cocktail.strDrink}</Text>
+                        <TouchableOpacity onPress={toggleLike} style={styles.likeButton}>
+                            {isLiked ? (
+                                <FontAwesome name="heart" size={24} color="red" />
+                            ) : (
+                                <FontAwesome name="heart-o" size={24} color="#333" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
                     <Image
                         style={styles.image}
                         source={{ uri: cocktail.strDrinkThumb }}
@@ -68,11 +118,22 @@ const styles = StyleSheet.create({
         padding: 20,
         backgroundColor: '#F8F8F8',
     },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
     title: {
         fontSize: 24,
-        marginBottom: 10,
         fontWeight: 'bold',
         color: '#333',
+        flex: 1,
+        textAlign: 'left',
+    },
+    likeButton: {
+        flex: 1,
+        textAlign: 'right',
     },
     image: {
         width: 150,
